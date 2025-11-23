@@ -21,19 +21,24 @@ type GmapJobOptions func(*GmapJob)
 type GmapJob struct {
 	scrapemate.Job
 
-	MaxDepth     int
-	LangCode     string
-	ExtractEmail bool
+	MaxDepth      int
+	LangCode      string
+	ExtractEmail  bool
+	ExtractImages bool
+	Debug         bool
 
 	Deduper             deduper.Deduper
 	ExitMonitor         exiter.Exiter
 	ExtractExtraReviews bool
+	ReviewsMax          int // Maximum number of reviews to extract
 }
 
 func NewGmapJob(
 	id, langCode, query string,
 	maxDepth int,
 	extractEmail bool,
+	extractImages bool,
+	reviewsMax int,
 	geoCoordinates string,
 	zoom int,
 	opts ...GmapJobOptions,
@@ -66,9 +71,12 @@ func NewGmapJob(
 			MaxRetries: maxRetries,
 			Priority:   prio,
 		},
-		MaxDepth:     maxDepth,
-		LangCode:     langCode,
-		ExtractEmail: extractEmail,
+		MaxDepth:            maxDepth,
+		LangCode:            langCode,
+		ExtractEmail:        extractEmail,
+		ExtractImages:       extractImages,
+		ExtractExtraReviews: reviewsMax > 0,
+		ReviewsMax:          reviewsMax,
 	}
 
 	for _, opt := range opts {
@@ -96,6 +104,12 @@ func WithExtraReviews() GmapJobOptions {
 	}
 }
 
+func WithDebug() GmapJobOptions {
+	return func(j *GmapJob) {
+		j.Debug = true
+	}
+}
+
 func (j *GmapJob) UseInResults() bool {
 	return false
 }
@@ -106,7 +120,17 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 		resp.Body = nil
 	}()
 
+	// Check for cancellation before processing
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	default:
+	}
+
 	log := scrapemate.GetLoggerFromContext(ctx)
+
+	// DEBUG: Log GmapJob flags
+	log.Info(fmt.Sprintf("DEBUG: GmapJob %s processing - ExtractImages: %v, ExtractEmail: %v", j.ID, j.ExtractImages, j.ExtractEmail))
 
 	doc, ok := resp.Document.(*goquery.Document)
 	if !ok {
@@ -116,23 +140,51 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 	var next []scrapemate.IJob
 
 	if strings.Contains(resp.URL, "/maps/place/") {
+		// Check for cancellation before creating place job
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		default:
+		}
+
 		jopts := []PlaceJobOptions{}
 		if j.ExitMonitor != nil {
 			jopts = append(jopts, WithPlaceJobExitMonitor(j.ExitMonitor))
 		}
 
-		placeJob := NewPlaceJob(j.ID, j.LangCode, resp.URL, j.ExtractEmail, j.ExtractExtraReviews, jopts...)
+		log.Info(fmt.Sprintf("DEBUG: Creating single PlaceJob from direct place URL with ExtractImages: %v", j.ExtractImages))
+		placeJob := NewPlaceJob(j.ID, j.LangCode, resp.URL, j.ExtractEmail, j.ExtractImages, j.ReviewsMax, jopts...)
 
 		next = append(next, placeJob)
 	} else {
-		doc.Find(`div[role=feed] div[jsaction]>a`).Each(func(_ int, s *goquery.Selection) {
+		log.Info(fmt.Sprintf("DEBUG: Processing search results page - will create PlaceJobs with ExtractImages: %v", j.ExtractImages))
+
+		// Get max results limit from ExitMonitor if available
+		maxResults := 0
+		if j.ExitMonitor != nil {
+			maxResults = j.ExitMonitor.GetMaxResults()
+			log.Info(fmt.Sprintf("DEBUG: Max results limit set to: %d", maxResults))
+		}
+
+		doc.Find(`div[role=feed] div[jsaction]>a`).Each(func(i int, s *goquery.Selection) {
+			// Check for cancellation during processing
+			select {
+			case <-ctx.Done():
+				return // Exit the Each loop early
+			default:
+			}
+
 			if href := s.AttrOr("href", ""); href != "" {
+				// Note: Removed early termination logic - let exit monitor handle max results
+				// based on actual successful results, not PlaceJobs created
+
 				jopts := []PlaceJobOptions{}
 				if j.ExitMonitor != nil {
 					jopts = append(jopts, WithPlaceJobExitMonitor(j.ExitMonitor))
 				}
 
-				nextJob := NewPlaceJob(j.ID, j.LangCode, href, j.ExtractEmail, j.ExtractExtraReviews, jopts...)
+				log.Info(fmt.Sprintf("DEBUG: Creating PlaceJob %d from search result with ExtractImages: %v", i+1, j.ExtractImages))
+				nextJob := NewPlaceJob(j.ID, j.LangCode, href, j.ExtractEmail, j.ExtractImages, j.ReviewsMax, jopts...)
 
 				if j.Deduper == nil || j.Deduper.AddIfNotExists(ctx, href) {
 					next = append(next, nextJob)
@@ -141,12 +193,19 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 		})
 	}
 
+	// Check for cancellation after processing
+	select {
+	case <-ctx.Done():
+		return nil, nil, ctx.Err()
+	default:
+	}
+
 	if j.ExitMonitor != nil {
 		j.ExitMonitor.IncrPlacesFound(len(next))
 		j.ExitMonitor.IncrSeedCompleted(1)
 	}
 
-	log.Info(fmt.Sprintf("%d places found", len(next)))
+	log.Info(fmt.Sprintf("DEBUG: Created %d PlaceJobs from GmapJob %s", len(next), j.ID))
 
 	return nil, next, nil
 }
@@ -154,23 +213,42 @@ func (j *GmapJob) Process(ctx context.Context, resp *scrapemate.Response) (any, 
 func (j *GmapJob) BrowserActions(ctx context.Context, page playwright.Page) scrapemate.Response {
 	var resp scrapemate.Response
 
+	// Check for cancellation before starting
+	select {
+	case <-ctx.Done():
+		resp.Error = ctx.Err()
+		return resp
+	default:
+	}
+
 	pageResponse, err := page.Goto(j.GetFullURL(), playwright.PageGotoOptions{
 		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
+		Timeout:   playwright.Float(30000), // Increased timeout
 	})
 
 	if err != nil {
 		resp.Error = err
-
 		return resp
 	}
+
+	// Check for cancellation after navigation
+	select {
+	case <-ctx.Done():
+		resp.Error = ctx.Err()
+		return resp
+	default:
+	}
+
+	// Wait a bit before handling cookies to let page load
+	page.WaitForTimeout(3000)
 
 	if err = clickRejectCookiesIfRequired(page); err != nil {
 		resp.Error = err
-
 		return resp
 	}
 
-	const defaultTimeout = 5000
+	// Wait for main content to be ready
+	const defaultTimeout = 10000
 
 	err = page.WaitForURL(page.URL(), playwright.PageWaitForURLOptions{
 		WaitUntil: playwright.WaitUntilStateDomcontentloaded,
@@ -179,8 +257,15 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page playwright.Page) scra
 
 	if err != nil {
 		resp.Error = err
-
 		return resp
+	}
+
+	// Check for cancellation after waiting
+	select {
+	case <-ctx.Done():
+		resp.Error = ctx.Err()
+		return resp
+	default:
 	}
 
 	resp.URL = pageResponse.URL()
@@ -211,8 +296,21 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page playwright.Page) scra
 		waitCancel()
 	}
 
+	// Check for cancellation before processing single place
+	select {
+	case <-ctx.Done():
+		resp.Error = ctx.Err()
+		return resp
+	default:
+	}
+
+	// Debug: log the current URL to see if we're being redirected
+	log := scrapemate.GetLoggerFromContext(ctx)
+	log.Info(fmt.Sprintf("DEBUG: Current page URL after navigation: %s", page.URL()))
+
 	if singlePlace {
 		resp.URL = page.URL()
+		log.Info(fmt.Sprintf("DEBUG: Detected single place redirect to: %s", resp.URL))
 
 		var body string
 
@@ -223,8 +321,18 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page playwright.Page) scra
 		}
 
 		resp.Body = []byte(body)
+		log.Info(fmt.Sprintf("DEBUG: Single place content length: %d", len(resp.Body)))
 
 		return resp
+	}
+
+	// Debug: Check if the feed selector exists
+	log.Info("DEBUG: Looking for search results feed...")
+	_, feedErr := page.QuerySelector(`div[role='feed']`)
+	if feedErr != nil {
+		log.Info(fmt.Sprintf("DEBUG: Feed selector not found: %v", feedErr))
+	} else {
+		log.Info("DEBUG: Feed selector found successfully")
 	}
 
 	scrollSelector := `div[role='feed']`
@@ -232,8 +340,15 @@ func (j *GmapJob) BrowserActions(ctx context.Context, page playwright.Page) scra
 	_, err = scroll(ctx, page, j.MaxDepth, scrollSelector)
 	if err != nil {
 		resp.Error = err
-
 		return resp
+	}
+
+	// Final cancellation check before getting content
+	select {
+	case <-ctx.Done():
+		resp.Error = ctx.Err()
+		return resp
+	default:
 	}
 
 	body, err := page.Content()
@@ -264,26 +379,77 @@ func waitUntilURLContains(ctx context.Context, page playwright.Page, s string) b
 }
 
 func clickRejectCookiesIfRequired(page playwright.Page) error {
-	// click the cookie reject button if exists
-	sel := `form[action="https://consent.google.com/save"]:first-of-type button:first-of-type`
+	// Check if we're on the new Google consent page (consent.google.com/ml)
+	currentURL := page.URL()
+	if strings.Contains(currentURL, "consent.google.com") {
+		// Google's consent page now uses input elements instead of buttons
+		// Try multiple selectors in order until one works
+		selectors := []string{
+			// New input-based selectors (Google's latest design)
+			`input.baseButtonGm3.filledButton`,
+			`input[value*="Reject"]`,
+			`input[value*="reject"]`,
+			`input[value*="Ablehnen"]`,
+			`input[value*="ablehnen"]`,
+			`form input[type="button"]:first-of-type`,
+			`form input:first-of-type`,
+			// Legacy button selectors (backward compatibility)
+			`button:has-text("Reject all")`,
+			`button:has-text("reject all")`,
+			`button[aria-label*="Reject"]`,
+			`button:has-text("Alle ablehnen")`,
+			`button:has-text("alle ablehnen")`,
+			`button:has(span[jsname="V67aGc"])`,
+			`button:has(span.UywwFc-vQzf8d)`,
+			`form button:first-of-type`,
+			`form[action="https://consent.google.com/save"]:first-of-type button:first-of-type`,
+		}
 
-	const timeout = 500
+		const timeout = 500 // Short timeout per selector since we try many
 
-	//nolint:staticcheck // TODO replace with the new playwright API
-	el, err := page.WaitForSelector(sel, playwright.PageWaitForSelectorOptions{
-		Timeout: playwright.Float(timeout),
-	})
+		for _, sel := range selectors {
+			//nolint:staticcheck // TODO replace with the new playwright API
+			el, err := page.WaitForSelector(sel, playwright.PageWaitForSelectorOptions{
+				Timeout: playwright.Float(timeout),
+			})
 
-	if err != nil {
-		return nil
+			if err == nil && el != nil {
+				// Wait a bit before clicking to ensure element is interactive
+				page.WaitForTimeout(300)
+
+				// Click the element (input or button)
+				//nolint:staticcheck // TODO replace with the new playwright API
+				if err := el.Click(); err == nil {
+					// Wait for navigation away from consent page
+					page.WaitForTimeout(2000)
+					return nil
+				}
+			}
+		}
+	} else {
+		// Not on consent page, try old cookie rejection logic
+		sel := `form[action="https://consent.google.com/save"]:first-of-type button:first-of-type`
+
+		const timeout = 500
+
+		//nolint:staticcheck // TODO replace with the new playwright API
+		el, err := page.WaitForSelector(sel, playwright.PageWaitForSelectorOptions{
+			Timeout: playwright.Float(timeout),
+		})
+
+		if err != nil {
+			return nil
+		}
+
+		if el == nil {
+			return nil
+		}
+
+		//nolint:staticcheck // TODO replace with the new playwright API
+		return el.Click()
 	}
 
-	if el == nil {
-		return nil
-	}
-
-	//nolint:staticcheck // TODO replace with the new playwright API
-	return el.Click()
+	return nil
 }
 
 func scroll(ctx context.Context,
@@ -307,17 +473,22 @@ func scroll(ctx context.Context,
 	waitTime := 100.
 	cnt := 0
 
-	const (
-		timeout  = 500
-		maxWait2 = 2000
-	)
+	initialTimeout := 500
+	maxWait2 := 2000.0
 
 	for i := 0; i < maxDepth; i++ {
-		cnt++
-		waitTime2 := timeout * cnt
+		// Check for cancellation before each scroll
+		select {
+		case <-ctx.Done():
+			return cnt, ctx.Err()
+		default:
+		}
 
-		if waitTime2 > timeout {
-			waitTime2 = maxWait2
+		cnt++
+		waitTime2 := initialTimeout * cnt
+
+		if waitTime2 > initialTimeout {
+			waitTime2 = int(maxWait2)
 		}
 
 		// Scroll to the bottom of the page.
@@ -337,9 +508,10 @@ func scroll(ctx context.Context,
 
 		currentScrollHeight = height
 
+		// Check for cancellation after scroll
 		select {
 		case <-ctx.Done():
-			return currentScrollHeight, nil
+			return cnt, ctx.Err()
 		default:
 		}
 

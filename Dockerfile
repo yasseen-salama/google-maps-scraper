@@ -1,25 +1,8 @@
 # Build stage for Playwright dependencies
-FROM golang:1.24-bullseye AS playwright-deps
+FROM golang:1.25.4-alpine AS builder
 
-# Use Go proxy for faster downloads
-ARG GOPROXY=https://proxy.golang.org,direct
-ENV GOPROXY=${GOPROXY}
-ENV GOSUMDB=sum.golang.org
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && go install github.com/playwright-community/playwright-go/cmd/playwright@latest \
-    && mkdir -p /opt/browsers \
-    && playwright install chromium --with-deps
-
-# Build stage
-FROM golang:1.24-bullseye AS builder
+# Set up Go environment
+ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Use Go proxy for faster downloads
 ARG GOPROXY=https://proxy.golang.org,direct
@@ -27,6 +10,9 @@ ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=sum.golang.org
 
 WORKDIR /app
+
+# Install CA certificates, wget, and git (needed for go mod download)
+RUN apk add --no-cache ca-certificates wget git
 
 # Copy go mod files first for better caching
 COPY go.mod go.sum ./
@@ -47,10 +33,11 @@ FROM debian:bullseye-slim
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/browsers
 ENV PLAYWRIGHT_DRIVER_PATH=/opt
 
-# Install runtime dependencies
+# Install runtime dependencies and Node.js for Playwright
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    wget \
     libnss3 \
     libnspr4 \
     libatk1.0-0 \
@@ -70,19 +57,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libcairo2 \
     libasound2 \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Playwright browsers and cache
-COPY --from=playwright-deps /opt/browsers /opt/browsers
-COPY --from=playwright-deps /root/.cache/ms-playwright-go /opt/ms-playwright-go
+# Install Playwright and browsers
+# We do this in the final stage or a separate stage to keep the image size optimized, 
+# but we need the go binary to install playwright driver if we use the go library's install command.
+# Alternatively, we can install the driver and browsers directly.
 
-# Set proper permissions
-RUN chmod -R 755 /opt/browsers \
-    && chmod -R 755 /opt/ms-playwright-go
+# Let's use the builder to install playwright driver and browsers to a temporary location, then copy them.
+# Actually, it's easier to install them in the final image or a dedicated deps stage.
+# Let's stick to the original multi-stage approach but fix the base image.
 
-# Copy the application binary
 COPY --from=builder /usr/bin/brezel-api /usr/bin/
+
+# Install Playwright driver and browsers
+RUN PLAYWRIGHT_INSTALL_ONLY=1 brezel-api
 
 # Copy migrations directory
 COPY scripts/migrations /scripts/migrations

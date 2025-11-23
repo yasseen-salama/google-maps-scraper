@@ -26,10 +26,10 @@ func NewRepository(db *sql.DB) (models.JobRepository, error) {
 	return &repository{db: db}, nil
 }
 
-// Get retrieves a job by ID
+// Get retrieves a job by ID (only non-deleted jobs)
 func (repo *repository) Get(ctx context.Context, id string) (models.Job, error) {
-	const q = `SELECT id, name, status, data, extract(epoch from created_at), extract(epoch from updated_at), user_id 
-               FROM jobs WHERE id = $1`
+	const q = `SELECT id, name, status, data, extract(epoch from created_at), extract(epoch from updated_at), user_id, COALESCE(failure_reason, '') 
+               FROM jobs WHERE id = $1 AND deleted_at IS NULL`
 
 	row := repo.db.QueryRowContext(ctx, q, id)
 
@@ -43,10 +43,10 @@ func (repo *repository) Create(ctx context.Context, job *models.Job) error {
 		return err
 	}
 
-	const q = `INSERT INTO jobs (id, name, status, data, created_at, updated_at, user_id) 
-               VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6), $7)`
+	const q = `INSERT INTO jobs (id, name, status, data, created_at, updated_at, user_id, failure_reason) 
+               VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($6), $7, $8)`
 
-	_, err = repo.db.ExecContext(ctx, q, item.ID, item.Name, item.Status, item.Data, item.CreatedAt, item.UpdatedAt, item.UserID)
+	_, err = repo.db.ExecContext(ctx, q, item.ID, item.Name, item.Status, item.Data, item.CreatedAt, item.UpdatedAt, item.UserID, item.FailureReason)
 	if err != nil {
 		return fmt.Errorf("failed to create job: %w", err)
 	}
@@ -54,25 +54,35 @@ func (repo *repository) Create(ctx context.Context, job *models.Job) error {
 	return nil
 }
 
-// Delete removes a job from the database
+// Delete marks a job as deleted (soft delete) without removing the valuable results data
+// This preserves all scraped results for potential future business use
 func (repo *repository) Delete(ctx context.Context, id string) error {
-	const q = `DELETE FROM jobs WHERE id = $1`
+	const q = `UPDATE jobs SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL`
 
-	_, err := repo.db.ExecContext(ctx, q, id)
+	result, err := repo.db.ExecContext(ctx, q, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete job: %w", err)
+	}
+
+	// Check if the job actually existed and wasn't already deleted
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("job with id %s not found or already deleted", id)
 	}
 
 	return nil
 }
 
-// Select finds jobs based on the provided parameters
+// Select finds jobs based on the provided parameters (only non-deleted jobs)
 func (repo *repository) Select(ctx context.Context, params models.SelectParams) ([]models.Job, error) {
-	q := `SELECT id, name, status, data, extract(epoch from created_at), extract(epoch from updated_at), user_id FROM jobs`
+	q := `SELECT id, name, status, data, extract(epoch from created_at), extract(epoch from updated_at), user_id, COALESCE(failure_reason, '') FROM jobs`
 
 	var args []interface{}
 	var conditions []string
 	var argNum int = 1
+
+	// Always filter out deleted jobs
+	conditions = append(conditions, "deleted_at IS NULL")
 
 	if params.Status != "" {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argNum))
@@ -132,11 +142,51 @@ func (repo *repository) Update(ctx context.Context, job *models.Job) error {
 		return err
 	}
 
-	const q = `UPDATE jobs SET name = $1, status = $2, data = $3, updated_at = to_timestamp($4), user_id = $5 WHERE id = $6`
+	const q = `UPDATE jobs SET name = $1, status = $2, data = $3, updated_at = to_timestamp($4), user_id = $5, failure_reason = $6 WHERE id = $7`
 
-	_, err = repo.db.ExecContext(ctx, q, item.Name, item.Status, item.Data, item.UpdatedAt, item.UserID, item.ID)
+	_, err = repo.db.ExecContext(ctx, q, item.Name, item.Status, item.Data, item.UpdatedAt, item.UserID, item.FailureReason, item.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update job: %w", err)
+	}
+
+	return nil
+}
+
+// Cancel marks a job for cancellation
+func (repo *repository) Cancel(ctx context.Context, id string) error {
+	// First check if job exists and is in a cancellable state
+	var currentStatus string
+	err := repo.db.QueryRowContext(ctx, "SELECT status FROM jobs WHERE id = $1 AND deleted_at IS NULL", id).Scan(&currentStatus)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("job with id %s not found", id)
+		}
+		return fmt.Errorf("failed to get job status: %w", err)
+	}
+
+	// Check if job can be cancelled
+	if currentStatus == models.StatusOK || currentStatus == models.StatusFailed || currentStatus == models.StatusCancelled {
+		return fmt.Errorf("job with status '%s' cannot be cancelled", currentStatus)
+	}
+
+	// Set status to cancelling/aborting
+	newStatus := models.StatusAborting
+	if currentStatus == models.StatusPending {
+		// If job is pending, mark it as cancelled immediately
+		newStatus = models.StatusCancelled
+	}
+
+	const q = `UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL`
+
+	result, err := repo.db.ExecContext(ctx, q, newStatus, id)
+	if err != nil {
+		return fmt.Errorf("failed to cancel job: %w", err)
+	}
+
+	// Check if the job actually existed and wasn't already deleted
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("job with id %s not found or already deleted", id)
 	}
 
 	return nil
@@ -149,7 +199,7 @@ type scannable interface {
 func rowToJob(row scannable) (models.Job, error) {
 	var j job
 
-	err := row.Scan(&j.ID, &j.Name, &j.Status, &j.Data, &j.CreatedAt, &j.UpdatedAt, &j.UserID)
+	err := row.Scan(&j.ID, &j.Name, &j.Status, &j.Data, &j.CreatedAt, &j.UpdatedAt, &j.UserID, &j.FailureReason)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return models.Job{}, errors.New("job not found")
@@ -157,12 +207,18 @@ func rowToJob(row scannable) (models.Job, error) {
 		return models.Job{}, fmt.Errorf("failed to scan job: %w", err)
 	}
 
+	createdAt := time.Unix(int64(j.CreatedAt), 0).UTC()
+	updatedAt := time.Unix(int64(j.UpdatedAt), 0).UTC()
+
 	ans := models.Job{
-		ID:     j.ID,
-		UserID: j.UserID,
-		Name:   j.Name,
-		Status: j.Status,
-		Date:   time.Unix(int64(j.CreatedAt), 0).UTC(),
+		ID:            j.ID,
+		UserID:        j.UserID,
+		Name:          j.Name,
+		Status:        j.Status,
+		Date:          createdAt,
+		CreatedAt:     &createdAt,
+		UpdatedAt:     &updatedAt,
+		FailureReason: j.FailureReason,
 	}
 
 	err = json.Unmarshal([]byte(j.Data), &ans.Data)
@@ -180,24 +236,146 @@ func jobToRow(item *models.Job) (job, error) {
 	}
 
 	return job{
-		ID:        item.ID,
-		UserID:    item.UserID,
-		Name:      item.Name,
-		Status:    item.Status,
-		Data:      string(data),
-		CreatedAt: float64(item.Date.Unix()),
-		UpdatedAt: float64(time.Now().UTC().Unix()),
+		ID:            item.ID,
+		UserID:        item.UserID,
+		Name:          item.Name,
+		Status:        item.Status,
+		Data:          string(data),
+		CreatedAt:     float64(item.Date.Unix()),
+		UpdatedAt:     float64(time.Now().UTC().Unix()),
+		FailureReason: item.FailureReason,
 	}, nil
 }
 
 type job struct {
-	ID        string
-	UserID    string
-	Name      string
-	Status    string
-	Data      string
-	CreatedAt float64
-	UpdatedAt float64
+	ID            string
+	UserID        string
+	Name          string
+	Status        string
+	Data          string
+	CreatedAt     float64
+	UpdatedAt     float64
+	FailureReason string
+}
+
+// Additional methods for soft delete management
+
+// PermanentDelete permanently removes a job and its results from the database
+// Use with caution - this operation cannot be undone
+func (repo *repository) PermanentDelete(ctx context.Context, id string) error {
+	// Start a transaction to ensure atomicity
+	tx, err := repo.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// First, delete all results that reference this job
+	const deleteResultsQuery = `DELETE FROM results WHERE job_id = $1`
+	_, err = tx.ExecContext(ctx, deleteResultsQuery, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete job results: %w", err)
+	}
+
+	// Then permanently delete the job itself
+	const deleteJobQuery = `DELETE FROM jobs WHERE id = $1`
+	jobResult, err := tx.ExecContext(ctx, deleteJobQuery, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete job: %w", err)
+	}
+
+	// Check if the job actually existed
+	jobRowsAffected, _ := jobResult.RowsAffected()
+	if jobRowsAffected == 0 {
+		return fmt.Errorf("job with id %s not found", id)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// RestoreJob restores a soft-deleted job
+func (repo *repository) RestoreJob(ctx context.Context, id string) error {
+	const q = `UPDATE jobs SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL`
+
+	result, err := repo.db.ExecContext(ctx, q, id)
+	if err != nil {
+		return fmt.Errorf("failed to restore job: %w", err)
+	}
+
+	// Check if the job actually existed and was deleted
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("job with id %s not found in deleted jobs", id)
+	}
+
+	return nil
+}
+
+// GetDeletedJobs retrieves all soft-deleted jobs (for admin purposes)
+func (repo *repository) GetDeletedJobs(ctx context.Context, params models.SelectParams) ([]models.Job, error) {
+	q := `SELECT id, name, status, data, extract(epoch from created_at), extract(epoch from updated_at), user_id, COALESCE(failure_reason, '') FROM jobs`
+
+	var args []interface{}
+	var conditions []string
+	var argNum int = 1
+
+	// Only get deleted jobs
+	conditions = append(conditions, "deleted_at IS NOT NULL")
+
+	if params.Status != "" {
+		conditions = append(conditions, fmt.Sprintf("status = $%d", argNum))
+		args = append(args, params.Status)
+		argNum++
+	}
+
+	if params.UserID != "" {
+		conditions = append(conditions, fmt.Sprintf("user_id = $%d", argNum))
+		args = append(args, params.UserID)
+		argNum++
+	}
+
+	if len(conditions) > 0 {
+		q += " WHERE " + conditions[0]
+		for i := 1; i < len(conditions); i++ {
+			q += " AND " + conditions[i]
+		}
+	}
+
+	q += " ORDER BY deleted_at DESC"
+
+	if params.Limit > 0 {
+		q += fmt.Sprintf(" LIMIT $%d", argNum)
+		args = append(args, params.Limit)
+	}
+
+	rows, err := repo.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to select deleted jobs: %w", err)
+	}
+
+	defer rows.Close()
+
+	var ans []models.Job
+
+	for rows.Next() {
+		job, err := rowToJob(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		ans = append(ans, job)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return ans, nil
 }
 
 // createSchema ensures the required database schema exists
@@ -229,22 +407,6 @@ func createSchema(db *sql.DB) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to create users table: %w", err)
-	}
-
-	// Create user_usage table 
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS user_usage (
-			id SERIAL PRIMARY KEY,
-			user_id TEXT NOT NULL,
-			job_count INTEGER NOT NULL DEFAULT 0,
-			last_job_date TIMESTAMP,
-			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-			CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-		)
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to create user_usage table: %w", err)
 	}
 
 	// Add foreign key constraint for jobs to users if not exists

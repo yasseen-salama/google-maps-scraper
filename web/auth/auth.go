@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"github.com/gosom/google-maps-scraper/postgres"
@@ -13,9 +15,8 @@ import (
 
 // AuthMiddleware handles Clerk authentication and adds user info to the request context
 type AuthMiddleware struct {
-	client       clerk.Client
-	userRepo     postgres.UserRepository
-	usageLimiter postgres.UsageLimiter
+	client   clerk.Client
+	userRepo postgres.UserRepository
 }
 
 // ContextKey is used to store user information in the request context
@@ -29,42 +30,59 @@ const (
 )
 
 // NewAuthMiddleware creates a new AuthMiddleware
-func NewAuthMiddleware(clerkAPIKey string, userRepo postgres.UserRepository, usageLimiter postgres.UsageLimiter) (*AuthMiddleware, error) {
+func NewAuthMiddleware(clerkAPIKey string, userRepo postgres.UserRepository) (*AuthMiddleware, error) {
 	client, err := clerk.NewClient(clerkAPIKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Clerk client: %w", err)
 	}
 
 	return &AuthMiddleware{
-		client:       client,
-		userRepo:     userRepo,
-		usageLimiter: usageLimiter,
+		client:   client,
+		userRepo: userRepo,
 	}, nil
 }
 
 // Authenticate is the middleware function for authentication
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get token from Authorization header
+		var token string
+
+		// Try to get token from Authorization header first
 		authHeader := r.Header.Get(AuthHeaderName)
-		if authHeader == "" {
-			http.Error(w, "Unauthorized: missing authorization header", http.StatusUnauthorized)
-			return
+		if authHeader != "" {
+			// Extract token from Bearer format
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				http.Error(w, "Unauthorized: invalid authorization format", http.StatusUnauthorized)
+				return
+			}
+			token = parts[1]
+		} else {
+			// Fallback to __session cookie (for OAuth callbacks and same-origin requests)
+			sessionCookie, err := r.Cookie("__session")
+			if err != nil || sessionCookie.Value == "" {
+				http.Error(w, "Unauthorized: missing authorization header", http.StatusUnauthorized)
+				return
+			}
+			token = sessionCookie.Value
 		}
 
-		// Extract token from Bearer format
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "Unauthorized: invalid authorization format", http.StatusUnauthorized)
-			return
-		}
-		token := parts[1]
-
-		// Verify token with Clerk
+		// Verify token with Clerk - retry once if clock skew error
 		claims, err := m.client.VerifyToken(token)
 		if err != nil {
-			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
-			return
+			// Check if it's a clock skew error and retry after a brief moment
+			if strings.Contains(err.Error(), "token issued in the future") {
+				// Wait 2 seconds and try again
+				time.Sleep(2 * time.Second)
+				claims, err = m.client.VerifyToken(token)
+				if err != nil {
+					http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+					return
+				}
+			} else {
+				http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+				return
+			}
 		}
 
 		// Get user ID from verified claims
@@ -80,6 +98,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			// If user doesn't exist, get their email and create them
 			clerkUser, err := m.client.Users().Read(userID)
 			if err != nil {
+				log.Printf("ERROR: Failed to retrieve user %s from Clerk: %v", userID, err)
 				http.Error(w, "Failed to retrieve user information", http.StatusInternalServerError)
 				return
 			}
@@ -101,6 +120,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			}
 
 			if email == "" {
+				log.Printf("ERROR: User %s has no email address in Clerk", userID)
 				http.Error(w, "User has no email address", http.StatusBadRequest)
 				return
 			}
@@ -112,7 +132,8 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			}
 			err = m.userRepo.Create(r.Context(), &user)
 			if err != nil {
-				http.Error(w, "Failed to create user record", http.StatusInternalServerError)
+				log.Printf("ERROR: Failed to create user %s in local database: %v", userID, err)
+				http.Error(w, "Failed to create user record: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 		}
@@ -123,39 +144,6 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// CheckUsageLimit is middleware to enforce usage limits
-func (m *AuthMiddleware) CheckUsageLimit(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip usage check for GET requests
-		if r.Method == http.MethodGet {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// Get user ID from context
-		userID, ok := r.Context().Value(UserIDKey).(string)
-		if !ok {
-			http.Error(w, "Unauthorized: user not authenticated", http.StatusUnauthorized)
-			return
-		}
-
-		// Check if user has reached their limit
-		allowed, err := m.usageLimiter.CheckLimit(r.Context(), userID)
-		if err != nil {
-			http.Error(w, "Failed to check usage limit", http.StatusInternalServerError)
-			return
-		}
-
-		if !allowed {
-			http.Error(w, "Usage limit reached. Try again tomorrow.", http.StatusTooManyRequests)
-			return
-		}
-
-		// User is under their limit, proceed
-		next.ServeHTTP(w, r)
-	})
-}
-
 // GetUserID extracts the user ID from the request context
 func GetUserID(ctx context.Context) (string, error) {
 	userID, ok := ctx.Value(UserIDKey).(string)
@@ -163,13 +151,4 @@ func GetUserID(ctx context.Context) (string, error) {
 		return "", errors.New("user not authenticated")
 	}
 	return userID, nil
-}
-
-// IncrementUsage increases the usage count for a user
-func (m *AuthMiddleware) IncrementUsage(ctx context.Context) error {
-	userID, err := GetUserID(ctx)
-	if err != nil {
-		return err
-	}
-	return m.usageLimiter.IncrementUsage(ctx, userID)
 }

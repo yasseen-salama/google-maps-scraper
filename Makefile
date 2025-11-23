@@ -36,3 +36,12 @@ cross-compile: ## cross compiles the application
 	GOOS=linux GOARCH=amd64 go build -o bin/$(APP_NAME)-${VERSION}-linux-amd64
 	GOOS=darwin GOARCH=amd64 go build -o bin/$(APP_NAME)-${VERSION}-darwin-amd64
 	GOOS=windows GOARCH=amd64 go build -o bin/$(APP_NAME)-${VERSION}-windows-amd64.exe
+
+sec: ## runs gosec security scan
+	gosec -conf .gosec.json ./...
+
+sec-critical: ## runs gosec showing only critical issues
+	gosec -conf .gosec.json -severity=critical ./...
+
+sec-html: ## generates gosec HTML report
+	gosec -conf .gosec.json -fmt html -out gosec-report.html ./...
