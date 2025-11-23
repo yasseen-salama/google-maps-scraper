@@ -107,6 +107,9 @@ if [ -d "$FRONTEND_DIR" ]; then
             echo "NEXT_PUBLIC_API_URL=http://localhost:8080" >> "$FRONTEND_DIR/.env.staging"
         fi
         
+        # Copy staging env to .env for Docker build
+        cp "$FRONTEND_DIR/.env.staging" "$FRONTEND_DIR/.env"
+        
         # Build frontend locally as fallback
         docker build -t gmaps-webapp-staging "$FRONTEND_DIR"
     fi
