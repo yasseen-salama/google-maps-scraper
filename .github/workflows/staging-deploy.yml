@@ -1,8 +1,8 @@
-name: Deploy Brezel.ai API to Staging
+name: Deploy BrezelScraper to Staging
 
 on:
   push:
-    branches: [main, develop, feature/fix-staging-pipeline]  # Added your feature branch
+    branches: [main, develop]
   pull_request:
     branches: [main, develop]
     types: [closed]
@@ -46,7 +46,7 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     if: |
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/fix-staging-pipeline') && 
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 
       (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true))
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -73,7 +73,7 @@ jobs:
             type=ref,event=branch
             type=ref,event=pr
             type=sha,prefix=${{ github.ref_name }}-
-            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/fix-staging-pipeline' }}
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/develop' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build and push Backend Docker image
@@ -100,7 +100,7 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     if: |
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/fix-staging-pipeline') && 
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 
       (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true))
     steps:
       - name: Checkout backend code
@@ -184,7 +184,7 @@ jobs:
     if: |
       always() && 
       needs.build-and-push-backend.result == 'success' && 
-      (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/fix-staging-pipeline')
+      (github.ref == 'refs/heads/develop')
     runs-on: ubuntu-latest
     environment:
       name: staging
@@ -204,7 +204,7 @@ jobs:
           script: |
             set -e
             
-            echo "🚀 Starting deployment to staging server"
+            echo "Starting deployment to staging server..."
             echo "Time: $(date)"
             echo "User: $(whoami)"
             
@@ -214,11 +214,11 @@ jobs:
               exit 1
             }
             
-            # Pull latest configuration from feature branch
+            # Pull latest configuration from develop branch
             echo "📥 Pulling latest configuration..."
             git fetch origin
-            git checkout feature/fix-staging-pipeline || git checkout develop
-            git pull origin feature/fix-staging-pipeline || git pull origin develop
+            git checkout develop
+            git pull origin develop
             
             # Setup environment
             echo "⚙️ Configuring environment variables..."
