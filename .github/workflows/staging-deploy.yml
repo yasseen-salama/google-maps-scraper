@@ -217,6 +217,8 @@ jobs:
             # Pull latest configuration from develop branch
             echo "📥 Pulling latest configuration..."
             git fetch origin
+            git reset --hard
+            git clean -fd
             git checkout develop
             git pull origin develop
             

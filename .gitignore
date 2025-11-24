@@ -7,7 +7,9 @@ gmapsdata/*.json
 
 # Environment variables
 .env
+.env.*
 *.env
+!.env.example
 
 # Binary files
 google-maps-scraper
@@ -26,3 +28,5 @@ google-maps-scraper
 *.swp
 *.swo
 go.work.sum
+brezel-api
+.gitignore
