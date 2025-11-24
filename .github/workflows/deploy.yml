@@ -182,21 +182,21 @@ jobs:
             echo "Time: $(date)"
             
             # Navigate to deployment directory
-            DEPLOY_DIR="${{ secrets.DEPLOY_DIR || '/opt/brezel-staging' }}"
+            DEPLOY_DIR="${{ secrets.DEPLOY_DIR || '/opt/brezelscraper-staging' }}"
             cd "$DEPLOY_DIR" || {
-              echo "❌ Deploy directory not found: $DEPLOY_DIR"
+              echo "Deploy directory not found: $DEPLOY_DIR"
               exit 1
             }
             
             # Verify docker-compose file exists
             if [ ! -f "${{ env.DOCKER_COMPOSE_FILE }}" ]; then
-              echo "❌ ${{ env.DOCKER_COMPOSE_FILE }} not found"
+              echo "$${ env.DOCKER_COMPOSE_FILE }} not found"
               exit 1
             fi
             
             # Validate docker-compose file
             docker compose -f ${{ env.DOCKER_COMPOSE_FILE }} config --quiet || {
-              echo "❌ Invalid docker-compose file"
+              echo "Invalid docker-compose file"
               exit 1
             }
             
