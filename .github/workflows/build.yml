@@ -1,43 +1,52 @@
-name: build
+name: Build
 
-permissions: {}
+permissions:
+  contents: read
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  run:
+  build:
     name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 10
     strategy:
       fail-fast: true
       matrix:
-        go: ['1.24.4']
+        go: ['1.25.x']
 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-      - name: Install Go
-        uses: actions/setup-go@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           check-latest: true
+          cache: true
+      
       - name: Go Format
         run: gofmt -s -w . && git diff --exit-code
 
       - name: Go Vet
         run: go vet ./...
+      
       - name: Go Tidy
         run: go mod tidy && git diff --exit-code
-      - name: Go Mod
+      
+      - name: Go Mod Download
         run: go mod download
+      
       - name: Go Mod Verify
         run: go mod verify
+      
       - name: Go Vulnerability Check
         run: make vuln
+      
       - name: Go Build
-        run: go build -o /dev/null ./...
+        run: go build -o brezel-api .

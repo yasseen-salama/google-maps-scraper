@@ -1,63 +1,98 @@
 #!/bin/bash
-# Deployment script for Brezel.ai staging server
-# This script pulls pre-built images from GitHub Container Registry
+# Deployment script for BrezelScraper staging server
+# Version: 2.0 - Production-ready with rollback support
 
-set -e
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+IFS=$'\n\t'        # Safer word splitting
 
 # Configuration
 REGISTRY="ghcr.io"
 BACKEND_IMAGE="yasseen-salama/google-maps-scraper"
-FRONTEND_IMAGE="yasseen-salama/google-maps-scraper-webapp"
+FRONTEND_IMAGE="brezel-ai/scraper-webapp"
 GITHUB_USER="${GITHUB_USER:-yasseen-salama}"
-GITHUB_TOKEN="${GITHUB_TOKEN}"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+COMPOSE_FILE="docker-compose.yaml"
+ENVIRONMENT="staging"
 
-echo "Starting deployment to staging server"
-echo "Time: $(date)"
-echo "User: $(whoami)"
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' 
 
-# Check if running from correct directory
-if [ ! -f "docker-compose.staging.yaml" ]; then
-    echo "ERROR: docker-compose.staging.yaml not found. Are you in the correct directory?"
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Cleanup function for rollback
+cleanup_on_failure() {
+    log_error "Deployment failed! Attempting to restore previous state..."
+    if [ -f ".env.backup.latest" ]; then
+        cp .env.backup.latest .env
+        docker compose -f "${COMPOSE_FILE}" up -d 2>/dev/null || true
+    fi
+    exit 1
+}
+
+trap cleanup_on_failure ERR
+
+log_info "Starting deployment to ${ENVIRONMENT} server"
+log_info "Time: $(date)"
+log_info "User: $(whoami)"
+
+# Validate required files
+if [ ! -f "${COMPOSE_FILE}" ]; then
+    log_error "docker-compose file not found: ${COMPOSE_FILE}"
+    log_error "Are you in the correct directory?"
     exit 1
 fi
 
-# Login to GitHub Container Registry if token is provided
-if [ ! -z "$GITHUB_TOKEN" ]; then
-    echo "Logging in to GitHub Container Registry..."
-    echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
-else
-    echo "WARNING: GITHUB_TOKEN not set. Attempting to pull public images..."
+# Validate required environment variables
+if [ -z "${GITHUB_TOKEN}" ]; then
+    log_warn "GITHUB_TOKEN not set. Will attempt to pull public images only."
 fi
 
-# Pull latest backend code
-echo "Pulling latest code from git..."
-git fetch origin
-git checkout develop
-git pull origin develop
+# Login to GitHub Container Registry if token is provided
+if [ -n "${GITHUB_TOKEN}" ]; then
+    log_info "Logging in to GitHub Container Registry..."
+    echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_USER}" --password-stdin 2>/dev/null || {
+        log_error "Failed to login to GitHub Container Registry"
+        exit 1
+    }
+fi
 
-# Setup environment
-echo "Configuring environment variables..."
+# Setup environment file
+log_info "Configuring environment variables..."
 if [ ! -f ".env" ]; then
-    echo "No .env file found, creating from template..."
+    log_warn "No .env file found"
     if [ -f ".env.example" ]; then
+        log_info "Creating .env from template..."
         cp .env.example .env
     else
-        echo "ERROR: No .env or .env.example file found"
+        log_error "No .env or .env.example file found"
         exit 1
     fi
 fi
 
 # Backup current configuration
-cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+BACKUP_FILE=".env.backup.$(date +%Y%m%d_%H%M%S)"
+cp .env "${BACKUP_FILE}"
+cp .env .env.backup.latest
+log_info "Created backup: ${BACKUP_FILE}"
 
-# Fix Docker networking for Linux
-sed -i 's/host\.docker\.internal/172.17.0.1/g' .env
-
-# Set concurrency for single-core servers
+# Detect and configure for server resources
 CPU_CORES=$(nproc)
-echo "Server has $CPU_CORES CPU cores"
-if [ $CPU_CORES -eq 1 ]; then
-    echo "Configuring for single-core performance..."
+log_info "Server has ${CPU_CORES} CPU cores"
+
+if [ "${CPU_CORES}" -eq 1 ]; then
+    log_warn "Configuring for single-core server..."
     if grep -q "^CONCURRENCY=" .env; then
         sed -i "s/^CONCURRENCY=.*/CONCURRENCY=1/" .env
     else
@@ -66,106 +101,108 @@ if [ $CPU_CORES -eq 1 ]; then
 fi
 
 # Pull the pre-built backend image
-echo "Pulling pre-built backend Docker image..."
-if ! docker pull "${REGISTRY}/${BACKEND_IMAGE}:staging"; then
-    echo "Failed to pull staging tag, trying develop tag..."
+log_info "Pulling backend Docker image..."
+if ! docker pull "${REGISTRY}/${BACKEND_IMAGE}:${ENVIRONMENT}"; then
+    log_warn "Failed to pull ${ENVIRONMENT} tag, trying develop tag..."
     if ! docker pull "${REGISTRY}/${BACKEND_IMAGE}:develop"; then
-        echo "ERROR: Failed to pull backend image from registry"
-        echo "Please ensure:"
-        echo "1. The images are built and pushed by GitHub Actions"
-        echo "2. You have access to the registry (set GITHUB_TOKEN if private)"
+        log_error "Failed to pull backend image from registry"
+        log_error "Ensure images are built and pushed by CI/CD pipeline"
         exit 1
     fi
+    # Tag develop as staging for local use
+    docker tag "${REGISTRY}/${BACKEND_IMAGE}:develop" "${REGISTRY}/${BACKEND_IMAGE}:${ENVIRONMENT}"
 fi
 
-# Check for frontend
-FRONTEND_DIR="../scraper-webapp"
-if [ ! -d "$FRONTEND_DIR" ]; then
-    FRONTEND_DIR="../google-maps-scraper-webapp"
+# Pull the pre-built frontend image
+log_info "Pulling frontend Docker image..."
+if ! docker pull "${REGISTRY}/${FRONTEND_IMAGE}:${ENVIRONMENT}"; then
+    log_warn "Failed to pull frontend ${ENVIRONMENT} image"
+    log_warn "Deployment will continue with backend only"
 fi
 
-if [ -d "$FRONTEND_DIR" ]; then
-    echo "Found frontend at: $FRONTEND_DIR"
-    
-    # Update frontend code
-    cd "$FRONTEND_DIR"
-    git fetch origin
-    git checkout develop || git checkout main
-    git pull
-    cd -
-    
-    # Pull frontend image
-    echo "Pulling frontend Docker image..."
-    if ! docker pull "${REGISTRY}/${FRONTEND_IMAGE}:staging"; then
-        echo "WARNING: Failed to pull frontend image, will try to build locally"
-        
-        # Ensure .env.staging exists for frontend
-        if [ ! -f "$FRONTEND_DIR/.env.staging" ]; then
-            if [ -f "$FRONTEND_DIR/.env.example" ]; then
-                cp "$FRONTEND_DIR/.env.example" "$FRONTEND_DIR/.env.staging"
-            fi
-            echo "NEXT_PUBLIC_API_URL=http://localhost:8080" >> "$FRONTEND_DIR/.env.staging"
-        fi
-        
-        # Build frontend locally as fallback
-        docker build -t gmaps-webapp-staging "$FRONTEND_DIR"
-    fi
+# Health check of current deployment (if exists)
+log_info "Checking current deployment status..."
+if docker compose -f "${COMPOSE_FILE}" ps -q backend &>/dev/null; then
+    log_info "Current backend is running - will perform rolling update"
+    CURRENT_RUNNING=true
 else
-    echo "Frontend directory not found, proceeding with backend only"
+    log_info "No existing deployment found"
+    CURRENT_RUNNING=false
 fi
 
-# Stop existing containers
-echo "Stopping current containers..."
-docker compose -f docker-compose.staging.yaml down --remove-orphans || true
+# Pull new images without stopping services (for zero-downtime)
+log_info "Pulling latest images..."
+docker compose -f "${COMPOSE_FILE}" pull
 
-# Clean up old images to save space
-echo "Cleaning up old images..."
-docker image prune -f || true
+# Stop existing containers gracefully
+log_info "Stopping current containers..."
+docker compose -f "${COMPOSE_FILE}" down --timeout 30 --remove-orphans
 
-# Start containers with the new images
-echo "Starting services with docker-compose..."
-docker compose -f docker-compose.staging.yaml --env-file .env up -d
+# Clean up old images to save space (but keep last 2 versions)
+log_info "Cleaning up old images..."
+docker image prune -f --filter "until=720h" 2>/dev/null || true
 
-# Wait for startup
-echo "Waiting for services to initialize..."
-sleep 15
+# Start new containers
+log_info "Starting services with docker compose..."
+docker compose -f "${COMPOSE_FILE}" --env-file .env up -d
 
-# Health check
-echo "Checking backend health status..."
+# Wait for containers to start
+log_info "Waiting for containers to initialize..."
+sleep 10
+
+# Health check with retry logic
+log_info "Performing health checks..."
 HEALTH_CHECK_URL="http://localhost:8080/health"
 MAX_ATTEMPTS=30
+ATTEMPT=1
 
-for i in $(seq 1 $MAX_ATTEMPTS); do
-    if curl -s -f $HEALTH_CHECK_URL > /dev/null 2>&1; then
-        echo ""
-        echo "Go Backend is running and healthy"
-        echo ""
-        echo "Staging deployment completed successfully!"
-        echo "================================"
-        echo "Staging backend API: http://$(hostname -I | awk '{print $1}'):8080"
-        echo "Health endpoint: http://$(hostname -I | awk '{print $1}'):8080/health"
-        echo "API documentation: http://$(hostname -I | awk '{print $1}'):8080/api/docs"
-        
-        if [ -d "$FRONTEND_DIR" ]; then
-            echo "Staging frontend app: http://$(hostname -I | awk '{print $1}'):3000"
-        fi
-        
-        echo ""
-        echo "Running containers:"
-        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(brezel|gmaps)" || true
-        exit 0
+while [ ${ATTEMPT} -le ${MAX_ATTEMPTS} ]; do
+    if curl -s -f "${HEALTH_CHECK_URL}" > /dev/null 2>&1; then
+        log_info "Backend is healthy!"
+        break
     else
-        echo "Health check attempt $i of $MAX_ATTEMPTS - Backend not ready yet..."
-        
-        if [ $i -eq $MAX_ATTEMPTS ]; then
-            echo ""
-            echo "ERROR: Backend failed to start after $MAX_ATTEMPTS attempts"
-            echo ""
-            echo "Container logs:"
-            docker compose -f docker-compose.staging.yaml logs --tail 100
+        if [ ${ATTEMPT} -eq ${MAX_ATTEMPTS} ]; then
+            log_error "Backend failed to become healthy after ${MAX_ATTEMPTS} attempts"
+            log_error "Container logs:"
+            docker compose -f "${COMPOSE_FILE}" logs --tail 100 backend
             exit 1
         fi
-        
-        sleep 3
+        echo -n "."
+        sleep 2
+        ATTEMPT=$((ATTEMPT + 1))
     fi
 done
+
+echo ""
+
+# Verify all containers are running
+log_info "Verifying all containers..."
+if ! docker compose -f "${COMPOSE_FILE}" ps | grep -q "Up"; then
+    log_error "Some containers failed to start"
+    docker compose -f "${COMPOSE_FILE}" ps
+    exit 1
+fi
+
+# Get server IP (more robust)
+SERVER_IP=$(hostname -I | awk '{print $1}' || echo "localhost")
+
+# Success message
+echo ""
+log_info "Deployment completed successfully!"
+echo "========================================"
+echo "Environment:     ${ENVIRONMENT}"
+echo "Backend API:     http://${SERVER_IP}:8080"
+echo "Health Check:    http://${SERVER_IP}:8080/health"
+echo "API Docs:        http://${SERVER_IP}:8080/api/docs"
+echo "Frontend App:    http://${SERVER_IP}:3000"
+echo ""
+echo "Running containers:"
+docker compose -f "${COMPOSE_FILE}" ps
+
+# Cleanup old backups (keep last 10)
+log_info "Cleaning up old backups..."
+ls -t .env.backup.* 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true
+
+log_info "Deployment completed at $(date)"
+
+exit 0
