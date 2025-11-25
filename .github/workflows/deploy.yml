@@ -81,7 +81,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           build-args: |
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             GIT_COMMIT=${{ github.sha }}
@@ -101,10 +101,20 @@ jobs:
           path: backend
 
       - name: Check out frontend repository
+        id: checkout-frontend
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: brezel-ai/scraper-webapp
+          token: ${{ secrets.FRONTEND_REPO_TOKEN }}
+          path: frontend
+
+      - name: Set frontend availability
         run: |
-          if git clone https://github.com/brezel-ai/scraper-webapp.git frontend 2>/dev/null; then
+          if [ -d "frontend" ]; then
             echo "FRONTEND_EXISTS=true" >> $GITHUB_ENV
             cd frontend
+            echo "✅ Frontend repository checked out successfully"
             echo "Frontend branch: $(git branch --show-current)"
             echo "Latest commit: $(git log --oneline -1)"
           else
@@ -146,7 +156,7 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
 
   deploy-staging:
     name: Deploy to Staging
