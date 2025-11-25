@@ -69,11 +69,6 @@ jobs:
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 
       (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true))
     steps:
-      - name: Check out backend code
-        uses: actions/checkout@v4
-        with:
-          path: backend
-
       - name: Check out frontend repository
         id: checkout-frontend
         continue-on-error: true
@@ -119,7 +114,7 @@ jobs:
           CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
           EOF
-          echo "✅ Frontend environment created"
+          echo "Frontend environment created"
 
       - name: Build and push Frontend
         if: env.FRONTEND_EXISTS == 'true'
