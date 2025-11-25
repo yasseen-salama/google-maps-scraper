@@ -11,7 +11,7 @@ on:
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: yasseen-salama/google-maps-scraper
-  FRONTEND_IMAGE: brezel-ai/scraper-webapp
+  FRONTEND_IMAGE: yasseen-salama/scraper-webapp
   DOCKER_COMPOSE_FILE: docker-compose.staging.yaml
   BACKEND_CONTAINER: brezelscraper-backend
   FRONTEND_CONTAINER: brezelscraper-frontend
