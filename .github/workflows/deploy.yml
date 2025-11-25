@@ -167,6 +167,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Deploy to staging server
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DSN: ${{ secrets.DSN }}
+          CLERK_API_KEY: ${{ secrets.CLERK_API_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.STAGING_HOST }}
@@ -175,6 +184,7 @@ jobs:
           port: ${{ secrets.STAGING_SSH_PORT || 22 }}
           timeout: 15m
           command_timeout: 15m
+          envs: GITHUB_TOKEN,DSN,CLERK_API_KEY,CLERK_SECRET_KEY,CLERK_PUBLISHABLE_KEY,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,GOOGLE_CLIENT_SECRET
           script: |
             set -e
             
@@ -213,42 +223,42 @@ jobs:
             echo "🔐 Updating secrets..."
             
             # Database - KEEP host.docker.internal (don't replace!)
-            if [ ! -z "${{ secrets.DSN }}" ]; then
-              sed -i "s|^DSN=.*|DSN=${{ secrets.DSN }}|" .env
+            if [ ! -z "$DSN" ]; then
+              sed -i "s|^DSN=.*|DSN=$DSN|" .env
             fi
             
             # Clerk
-            if [ ! -z "${{ secrets.CLERK_API_KEY }}" ]; then
-              sed -i "s/^CLERK_API_KEY=.*/CLERK_API_KEY=${{ secrets.CLERK_API_KEY }}/" .env
+            if [ ! -z "$CLERK_API_KEY" ]; then
+              sed -i "s/^CLERK_API_KEY=.*/CLERK_API_KEY=$CLERK_API_KEY/" .env
             fi
-            if [ ! -z "${{ secrets.STAGING_CLERK_SECRET_KEY }}" ]; then
+            if [ ! -z "$CLERK_SECRET_KEY" ]; then
               grep -q "^CLERK_SECRET_KEY=" .env && \
-                sed -i "s/^CLERK_SECRET_KEY=.*/CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}/" .env || \
-                echo "CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}" >> .env
+                sed -i "s/^CLERK_SECRET_KEY=.*/CLERK_SECRET_KEY=$CLERK_SECRET_KEY/" .env || \
+                echo "CLERK_SECRET_KEY=$CLERK_SECRET_KEY" >> .env
             fi
-            if [ ! -z "${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}" ]; then
+            if [ ! -z "$CLERK_PUBLISHABLE_KEY" ]; then
               grep -q "^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=" .env && \
-                sed -i "s/^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=.*/NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}/" .env || \
-                echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}" >> .env
+                sed -i "s/^NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=.*/NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY/" .env || \
+                echo "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY" >> .env
             fi
             
             # Stripe
-            if [ ! -z "${{ secrets.STRIPE_SECRET_KEY }}" ]; then
+            if [ ! -z "$STRIPE_SECRET_KEY" ]; then
               grep -q "^STRIPE_SECRET_KEY=" .env && \
-                sed -i "s/^STRIPE_SECRET_KEY=.*/STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}/" .env || \
-                echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+                sed -i "s/^STRIPE_SECRET_KEY=.*/STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY/" .env || \
+                echo "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" >> .env
             fi
-            if [ ! -z "${{ secrets.STRIPE_WEBHOOK_SECRET }}" ]; then
+            if [ ! -z "$STRIPE_WEBHOOK_SECRET" ]; then
               grep -q "^STRIPE_WEBHOOK_SECRET=" .env && \
-                sed -i "s/^STRIPE_WEBHOOK_SECRET=.*/STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}/" .env || \
-                echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> .env
+                sed -i "s/^STRIPE_WEBHOOK_SECRET=.*/STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET/" .env || \
+                echo "STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET" >> .env
             fi
             
             # Google
-            if [ ! -z "${{ secrets.GOOGLE_CLIENT_SECRET }}" ]; then
+            if [ ! -z "$GOOGLE_CLIENT_SECRET" ]; then
               grep -q "^GOOGLE_CLIENT_SECRET=" .env && \
-                sed -i "s/^GOOGLE_CLIENT_SECRET=.*/GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}/" .env || \
-                echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
+                sed -i "s/^GOOGLE_CLIENT_SECRET=.*/GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET/" .env || \
+                echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET" >> .env
             fi
             
             # Optimize for CPU
@@ -262,7 +272,7 @@ jobs:
             
             # Login to registry
             echo "🔐 Logging in to GitHub Container Registry..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Stop existing containers
             echo "🛑 Stopping current containers..."
