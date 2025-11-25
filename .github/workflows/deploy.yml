@@ -103,19 +103,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create frontend environment
-        if: env.FRONTEND_EXISTS == 'true'
-        run: |
-          cd frontend
-          cat > .env << EOF
-          NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL || 'http://brezelscraper-backend:8080' }}
-          NEXT_PUBLIC_ENVIRONMENT=staging
-          NODE_ENV=production
-          CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
-          EOF
-          echo "Frontend environment created"
-
       - name: Build and push Frontend
         if: env.FRONTEND_EXISTS == 'true'
         uses: docker/build-push-action@v6
