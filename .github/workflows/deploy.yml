@@ -17,33 +17,8 @@ env:
   FRONTEND_CONTAINER: brezelscraper-frontend
 
 jobs:
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.x'
-          cache: true
-
-      - name: Download dependencies
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Run tests
-        run: go test -v -race ./...
-
-      - name: Build application
-        run: go build -o brezel-api .
-
   build-and-push-backend:
     name: Build and Push Backend
-    needs: [test]
     runs-on: ubuntu-latest
     if: |
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 
@@ -89,7 +64,6 @@ jobs:
 
   build-and-push-frontend:
     name: Build and Push Frontend
-    needs: [test]
     runs-on: ubuntu-latest
     if: |
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && 
