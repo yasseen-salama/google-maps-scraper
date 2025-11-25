@@ -159,6 +159,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/arm64
+          build-args: |
+            CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL || 'http://brezelscraper-backend:8080' }}
+            NEXT_PUBLIC_ENVIRONMENT=staging
+            NODE_ENV=production
 
   deploy-staging:
     name: Deploy to Staging
