@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Golang Security Checker</title>
+  <link rel="shortcut icon" type="image/png" href="https://securego.io/img/favicon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.4/css/bulma.min.css" integrity="sha512-yh2RE0wZCVZeysGiqTwDTO/dKelCbS9bP2L94UvOFtl/FKXcNAje3Y2oBg/ZMZ3LS1sicYk4dYVGtDex75fvvA==" crossorigin="anonymous"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css" integrity="sha512-hasIneQUHlh06VNBe7f6ZcHmeRTLIaQWFd43YriJ0UND19bvYRauxthDg8E4eVNPm9bRUhr5JGeqH7FRFXQu5g==" crossorigin="anonymous"/>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js" integrity="sha512-EBLzUL8XLl+va/zAsmXwS7Z2B1F9HUHkZwyS/VKwh3S7T/U0nF4BaU29EP/ZSf6zgiIxYAnKLu6bJ8dqpmX5uw==" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/go.min.js" integrity="sha512-weC0VNVf2qQR6OY675qO0AEL92gt3h5f2VGjhMUvi/UqFHaWzIEL5S/8Dt763fWfKftchzb7GryvEj/2HC9Exw==" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/react/15.7.0/react.min.js" integrity="sha512-+TFn1Gqbwx/qgwW3NU1/YtFYTfHGeD1e/8YfJZzkb6TFEZP4SUwp1Az9DMeWh3qC0F+YPKXbV3YclMUwBTvO3g==" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/react/15.6.1/react-dom.min.js" integrity="sha512-8C49ZG/SaQnWaUgCHTU1o8uIQNYE6R8me38SwF26g2Q0byEXF4Jlvm+T/JAMHMeTBiEVPslSZRv9Xt4AV0pfmw==" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.28.4/babel.min.js" integrity="sha512-BCw4VuBF2HKIgxDP8K7DRHcHzazAAND+5+2E7GgX3CC1u1pteJ415mMJlQfUORjkFT64irzu1jIV93Vfvzkevw==" crossorigin="anonymous"></script>
+  <style>
+  .field-label {
+    min-width: 80px;
+  }
+  .break-word {
+    word-wrap: break-word;
+  }
+  .help {
+    white-space: pre-wrap;
+  }
+  .tag {
+    width: 80px;
+  }
+  .summary-first {
+    padding: .75rem .75rem .1rem .75rem;
+  }
+  .summary-last {
+    padding: .1rem .75rem .75rem .75rem;
+  }
+  .summary {
+    padding: .1rem .75rem ;
+  }
+  </style>
+</head>
+<body>
+  <section class="section">
+    <div class="container">
+      <div id="content"></div>
+    </div>
+  </section>
+  <script>
+    var data = {"Golang errors":{},"Issues":[{"severity":"HIGH","confidence":"MEDIUM","cwe":{"id":"338","url":"https://cwe.mitre.org/data/definitions/338.html"},"rule_id":"G404","details":"Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)","file":"/Users/yasseen/Documents/google-maps-scraper-2/gmaps/images/performance.go","code":"155: \tjitterRange := float64(delay) * 0.25\n156: \tjitter := time.Duration(rand.Float64()*jitterRange*2 - jitterRange)\n157: \tfinalDelay := delay + jitter\n","line":"156","column":"26","nosec":false,"suppressions":null},{"severity":"MEDIUM","confidence":"HIGH","cwe":{"id":"22","url":"https://cwe.mitre.org/data/definitions/22.html"},"rule_id":"G304","details":"Potential file inclusion via variable","file":"/Users/yasseen/Documents/google-maps-scraper-2/web/web.go","code":"650: \n651: \tfile, err := os.Open(filePath)\n652: \tif err != nil {\n","line":"651","column":"15","nosec":false,"suppressions":null,"autofix":"Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."},{"severity":"MEDIUM","confidence":"HIGH","cwe":{"id":"22","url":"https://cwe.mitre.org/data/definitions/22.html"},"rule_id":"G304","details":"Potential file inclusion via variable","file":"/Users/yasseen/Documents/google-maps-scraper-2/web/handlers/web.go","code":"261: \t}\n262: \tfile, err := os.Open(filePath)\n263: \tif err != nil {\n","line":"262","column":"15","nosec":false,"suppressions":null,"autofix":"Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."},{"severity":"MEDIUM","confidence":"HIGH","cwe":{"id":"22","url":"https://cwe.mitre.org/data/definitions/22.html"},"rule_id":"G304","details":"Potential file inclusion via variable","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/webrunner/webrunner.go","code":"349: \n350: \toutfile, err := os.Create(outpath)\n351: \tif err != nil {\n","line":"350","column":"18","nosec":false,"suppressions":null,"autofix":"Consider using os.Root to scope file access under a fixed root (Go \u003e=1.24). Prefer root.Open/root.Stat over os.Open/os.Stat to prevent directory traversal."},{"severity":"MEDIUM","confidence":"HIGH","cwe":{"id":"276","url":"https://cwe.mitre.org/data/definitions/276.html"},"rule_id":"G301","details":"Expect directory permissions to be 0750 or less","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/webrunner/webrunner.go","code":"81: \n82: \tif err := os.MkdirAll(cfg.DataFolder, os.ModePerm); err != nil {\n83: \t\treturn nil, err\n","line":"82","column":"12","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/tlmt/tlmt.go","code":"116: \t\t\t\t_, _ = io.Copy(io.Discard, resp.Body)\n117: \t\t\t\tresp.Body.Close()\n118: \t\t\t}()\n","line":"117","column":"5","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/webrunner/webrunner.go","code":"655: \n656: \tmate.Close()\n657: \n","line":"656","column":"2","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/webrunner/webrunner.go","code":"514: \t\t\t\t\tlog.Printf(\"DEBUG: Job %s - Force closing mate due to unresponsive mate.Start()\", job.ID)\n515: \t\t\t\t\tmate.Close()\n516: \t\t\t\t}()\n","line":"515","column":"6","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/webrunner/webrunner.go","code":"184: \tif w.db != nil {\n185: \t\tw.db.Close()\n186: \t}\n","line":"185","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/runner/lambdaaws/lambdaaws.go","code":"120: \n121: \tout.Close()\n122: \n","line":"121","column":"2","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"304: \t\tio.Copy(clientConn, proxyConn)\n305: \t\tclientConn.Close()\n306: \t}()\n","line":"305","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"303: \t\tdefer wg.Done()\n304: \t\tio.Copy(clientConn, proxyConn)\n305: \t\tclientConn.Close()\n","line":"304","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"297: \t\tio.Copy(proxyConn, clientConn)\n298: \t\tproxyConn.Close()\n299: \t}()\n","line":"298","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"296: \t\tdefer wg.Done()\n297: \t\tio.Copy(proxyConn, clientConn)\n298: \t\tproxyConn.Close()\n","line":"297","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"286: \t// Forward response back to client\n287: \tio.Copy(clientConn, proxyConn)\n288: }\n","line":"287","column":"2","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"210: \t\t\tlog.Printf(\"❌ All proxies failed for HTTPS %s: %v\", target, err)\n211: \t\t\tclientConn.Write([]byte(\"HTTP/1.1 500 All proxies failed\\r\\n\\r\\n\"))\n212: \t\t\treturn\n","line":"211","column":"4","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/proxy.go","code":"148: \tif ps.listener != nil {\n149: \t\tps.listener.Close()\n150: \t}\n","line":"149","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/proxy/pool.go","code":"151: \t}\n152: \tlistener.Close()\n153: \treturn true\n","line":"152","column":"2","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/postgres/migration.go","code":"114: \tif err != nil {\n115: \t\tdb.Close()\n116: \t\treturn nil, fmt.Errorf(\"failed to create migration driver: %w\", err)\n","line":"115","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/postgres/migration.go","code":"106: \tif err := db.PingContext(ctx); err != nil {\n107: \t\tdb.Close()\n108: \t\treturn nil, fmt.Errorf(\"failed to ping database: %w\", err)\n","line":"107","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/main.go","code":"61: \t_ = runnerInstance.Close(ctx)\n62: \trunner.Telemetry().Close()\n63: \n","line":"62","column":"2","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/main.go","code":"53: \t\t_ = runnerInstance.Close(ctx)\n54: \t\trunner.Telemetry().Close()\n55: \n","line":"54","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/main.go","code":"50: \tif err := runnerInstance.Run(ctx); err != nil \u0026\u0026 !errors.Is(err, context.Canceled) {\n51: \t\tos.Stderr.WriteString(err.Error() + \"\\n\")\n52: \n","line":"51","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/main.go","code":"44: \n45: \t\trunner.Telemetry().Close()\n46: \n","line":"45","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/main.go","code":"42: \t\tcancel()\n43: \t\tos.Stderr.WriteString(err.Error() + \"\\n\")\n44: \n","line":"43","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/gmaps/images/optimized_extractor.go","code":"509: \tfor i := 0; i \u003c 2; i++ {\n510: \t\tpage.Evaluate(`() =\u003e {\n511: \t\t\twindow.scrollBy(0, 300);\n512: \t\t\tconst containers = document.querySelectorAll('[role=\"main\"], .gallery-container');\n513: \t\t\tcontainers.forEach(c =\u003e c.scrollTop += 300);\n514: \t\t}`)\n515: \t\ttime.Sleep(500 * time.Millisecond)\n","line":"510-514","column":"3","nosec":false,"suppressions":null},{"severity":"LOW","confidence":"HIGH","cwe":{"id":"703","url":"https://cwe.mitre.org/data/definitions/703.html"},"rule_id":"G104","details":"Errors unhandled","file":"/Users/yasseen/Documents/google-maps-scraper-2/deduper/hashmap.go","code":"38: \th := fnv.New64()\n39: \th.Write([]byte(key))\n40: \n","line":"39","column":"2","nosec":false,"suppressions":null}],"Stats":{"files":60,"lines":15299,"nosec":0,"found":27},"GosecVersion":"dev"};
+  </script>
+  <script type="text/babel">
+    var IssueTag = React.createClass({
+      render: function() {
+        var level = "tag"
+        if (this.props.level === "HIGH") {
+          level += " is-danger";
+        } else if (this.props.level === "MEDIUM") {
+          level += " is-warning";
+        } else if (this.props.level === "LOW") {
+          level += " is-info";
+        } else if (this.props.level === "WAIVED") {
+          level += " is-success";
+        }
+        level +=" is-rounded";
+        return (
+          <div className="control">
+            <div className="tags has-addons">
+              <span className="tag is-dark is-rounded">{ this.props.label }</span>
+              <span className={ level }>{ this.props.level }</span>
+            </div>
+          </div>
+        );
+      }
+    });
+    var Highlight = React.createClass({
+      componentDidMount: function(){
+        var current = ReactDOM.findDOMNode(this);
+        hljs.highlightElement(current);
+      },
+      render: function() {
+        return (
+          <pre className="go"><code >{ this.props.code }</code></pre>
+        );
+      }
+    });
+    var Issue = React.createClass({
+      render: function() {
+        return (
+          <div className="issue box">
+          <div className="columns">
+              <div className="column is-three-quarters">
+                <strong className="break-word">{ this.props.data.file } (line { this.props.data.line })</strong>
+                <p>{this.props.data.rule_id} (CWE-{this.props.data.cwe.id}): { this.props.data.details }</p>
+              </div>
+              <div className="column is-one-quarter">
+                <div className="field is-grouped is-grouped-multiline">
+                  {this.props.data.nosec && <IssueTag label="NoSec" level="WAIVED"/>}
+                  <IssueTag label="Severity" level={ this.props.data.severity }/>
+                  <IssueTag label="Confidence" level={ this.props.data.confidence }/>
+                </div>
+              </div>
+            </div>
+            <div className="highlight">
+              <Highlight key={ this.props.data.file + this.props.data.line } code={ this.props.data.code }/>
+            </div>
+          </div>
+        );
+      }
+    });
+    var Stats = React.createClass({
+      render: function() {
+        return (
+          <p className="help is-pulled-right">
+            Gosec {this.props.data.GosecVersion} scanned { this.props.data.Stats.files.toLocaleString() } files
+            with { this.props.data.Stats.lines.toLocaleString() } lines of code.
+            { this.props.data.Stats.nosec ? '\n' + this.props.data.Stats.nosec.toLocaleString() + ' false positives (nosec) have been waived.' : ''}
+          </p>
+        );
+      }
+    });
+    var Issues = React.createClass({
+      render: function() {
+        if (this.props.data.Stats.files === 0) {
+          return (
+            <div className="notification">
+              No source files found. Do you even Go?
+            </div>
+          );
+        }
+        if (this.props.data.Issues.length === 0) {
+          return (
+            <div>
+              <div className="notification">
+                Awesome! No issues found!
+              </div>
+              <Stats data={ this.props.data } />
+            </div>
+          );
+        }
+        var issues = this.props.data.Issues
+          .filter(function(issue) {
+            return this.props.severity.includes(issue.severity);
+          }.bind(this))
+          .filter(function(issue) {
+            return this.props.confidence.includes(issue.confidence);
+          }.bind(this))
+          .filter(function(issue) {
+            if (this.props.issueType) {
+              return issue.details.toLowerCase().startsWith(this.props.issueType.toLowerCase());
+            } else {
+              return true
+            }
+          }.bind(this))
+          .map(function(issue) {
+            return (<Issue data={issue} />);
+          }.bind(this));
+        if (issues.length === 0) {
+          return (
+            <div>
+              <div className="notification">
+                No issues matched given filters
+                (of total { this.props.data.Issues.length } issues).
+              </div>
+              <Stats data={ this.props.data } />
+            </div>
+          );
+        }
+        return (
+          <div className="issues">
+            { issues }
+            <Stats data={ this.props.data } />
+          </div>
+        );
+      }
+    });
+    var LevelSelector = React.createClass({
+      handleChange: function(level) {
+        return function(e) {
+          var updated = this.props.selected
+            .filter(function(item) { return item != level; });
+          if (e.target.checked) {
+            updated.push(level);
+          }
+          this.props.onChange(updated);
+        }.bind(this);
+      },
+      render: function() {
+        var HIGH = "HIGH", MEDIUM = "MEDIUM", LOW = "LOW";
+        var highDisabled = !this.props.available.includes(HIGH);
+        var mediumDisabled = !this.props.available.includes(MEDIUM);
+        var lowDisabled = !this.props.available.includes(LOW);
+        return (
+          <div className="field">
+            <div className="control">
+              <label className="checkbox" disabled={ highDisabled }>
+                <input
+                  type="checkbox"
+                  checked={ this.props.selected.includes(HIGH) }
+                  disabled={ highDisabled }
+                  onChange={ this.handleChange(HIGH) }/> High
+              </label>
+            </div>
+            <div className="control">
+              <label className="checkbox" disabled={ mediumDisabled }>
+                <input
+                  type="checkbox"
+                  checked={ this.props.selected.includes(MEDIUM) }
+                  disabled={ mediumDisabled }
+                  onChange={ this.handleChange(MEDIUM) }/> Medium
+              </label>
+            </div>
+            <div className="control">
+              <label className="checkbox" disabled={ lowDisabled }>
+                <input
+                  type="checkbox"
+                  checked={ this.props.selected.includes(LOW) }
+                  disabled={ lowDisabled }
+                  onChange={ this.handleChange(LOW) }/> Low
+              </label>
+            </div>
+          </div>
+        );
+      }
+    });
+    var Navigation = React.createClass({
+      updateSeverity: function(vals) {
+        this.props.onSeverity(vals);
+      },
+      updateConfidence: function(vals) {
+        this.props.onConfidence(vals);
+      },
+      updateIssueType: function(e) {
+        if (e.target.value == "all") {
+          this.props.onIssueType(null);
+        } else {
+          this.props.onIssueType(e.target.value);
+        }
+      },
+      render: function() {
+        var issueTypes = this.props.allIssueTypes
+          .map(function(it) {
+            var matches = this.props.issueType == it
+            return (
+              <option value={ it } selected={ matches }>
+                { it }
+              </option>
+            );
+          }.bind(this));
+        return (
+          <div>
+              <nav className="panel">
+                <div className="panel-heading">Filters</div>
+                <div className="panel-block">
+                  <div className="field is-horizontal">
+                    <div className="field-label is-normal">
+                      <label className="label is-pulled-left">Severity</label>
+                    </div>
+                    <div className="field-body">
+                      <LevelSelector selected={ this.props.severity } available={ this.props.allSeverities } onChange={ this.updateSeverity } />
+                    </div>
+                 </div>
+                </div>
+                <div className="panel-block">
+                  <div className="field is-horizontal">
+                    <div className="field-label is-normal">
+                      <label className="label is-pulled-left">Confidence</label>
+                    </div>
+                    <div className="field-body">
+                      <LevelSelector selected={ this.props.confidence } available={ this.props.allConfidences } onChange={ this.updateConfidence } />
+                    </div>
+                  </div>
+                </div>
+                <div className="panel-block">
+                  <div className="field is-horizontal">
+                    <div className="field-label is-normal">
+                      <label className="label is-pulled-left">Issue type</label>
+                    </div>
+                    <div className="field-body">
+                      <div className="field">
+                        <div className="control">
+                          <div className="select is-fullwidth">
+                            <select onChange={ this.updateIssueType }>
+                              <option value="all" selected={ !this.props.issueType }>
+                                (all)
+                              </option>
+                              { issueTypes }
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </nav>
+              <nav className="panel">
+                <div className="panel-heading">Summary</div>
+                  <div className="panel-block">
+                      <div className="columns is-multiline">
+                          <div className="column is-half summary-first">
+                              <label className="label is-pulled-left">Gosec: </label>
+                          </div>
+                          <div className="column is-half summary-first">
+                              {this.props.data.GosecVersion}
+                          </div>
+                          <div className="column is-half summary">
+                              <label className="label is-pulled-left">Files: </label>
+                          </div>
+                          <div className="column is-half summary">
+                              {this.props.data.Stats.files.toLocaleString()}
+                          </div>
+                          <div className="column is-half summary">
+                              <label className="label is-pulled-left">Lines: </label>
+                          </div>
+                          <div className="column is-half summary">
+                              {this.props.data.Stats.lines.toLocaleString()}
+                          </div>
+                          <div className="column is-half summary">
+                              <label className="label is-pulled-left">Nosec: </label>
+                          </div>
+                          <div className="column is-half summary">
+                              {this.props.data.Stats.nosec.toLocaleString()}
+                          </div>
+                          <div className="column is-half summary-last">
+                              <label className="label is-pulled-left">Issues: </label>
+                          </div>
+                          <div className="column is-half summary-last">
+                              {this.props.data.Stats.found.toLocaleString()}
+                          </div>
+                      </div>
+                  </div>
+              </nav>
+          </div>
+        );
+      }
+    });
+    var IssueBrowser = React.createClass({
+      getInitialState: function() {
+        return {};
+      },
+      componentWillMount: function() {
+        this.updateIssues(this.props.data);
+      },
+      handleSeverity: function(val) {
+        this.updateIssueTypes(this.props.data.Issues, val, this.state.confidence);
+        this.setState({severity: val});
+      },
+      handleConfidence: function(val) {
+        this.updateIssueTypes(this.props.data.Issues, this.state.severity, val);
+        this.setState({confidence: val});
+      },
+      handleIssueType: function(val) {
+        this.setState({issueType: val});
+      },
+      updateIssues: function(data) {
+        if (!data) {
+          this.setState({data: data});
+          return;
+        }
+        var allSeverities = data.Issues
+          .map(function(issue) {
+            return issue.severity
+          })
+          .sort()
+          .filter(function(item, pos, ary) {
+            return !pos || item != ary[pos - 1];
+          });
+        var allConfidences = data.Issues
+          .map(function(issue) {
+            return issue.confidence
+          })
+          .sort()
+          .filter(function(item, pos, ary) {
+            return !pos || item != ary[pos - 1];
+          });
+        var selectedSeverities = allSeverities;
+        var selectedConfidences = allConfidences;
+        this.updateIssueTypes(data.Issues, selectedSeverities, selectedConfidences);
+        this.setState({
+          data: data,
+          severity: selectedSeverities,
+          allSeverities: allSeverities,
+          confidence: selectedConfidences,
+          allConfidences: allConfidences,
+          issueType: null
+        });
+      },
+      updateIssueTypes: function(issues, severities, confidences) {
+        var allTypes = issues
+          .filter(function(issue) {
+            return severities.includes(issue.severity);
+          })
+          .filter(function(issue) {
+            return confidences.includes(issue.confidence);
+          })
+          .map(function(issue) {
+            return issue.details;
+          })
+          .sort()
+          .filter(function(item, pos, ary) {
+            return !pos || item != ary[pos - 1];
+          });
+        if (this.state.issueType && !allTypes.includes(this.state.issueType)) {
+          this.setState({issueType: null});
+        }
+        this.setState({allIssueTypes: allTypes});
+      },
+      render: function() {
+        return (
+          <div className="content">
+            <div className="columns">
+              <div className="column is-one-quarter">
+                <Navigation
+                  data={ this.props.data }
+                  severity={ this.state.severity }
+                  confidence={ this.state.confidence }
+                  issueType={ this.state.issueType }
+                  allSeverities={ this.state.allSeverities }
+                  allConfidences={ this.state.allConfidences }
+                  allIssueTypes={ this.state.allIssueTypes }
+                  onSeverity={ this.handleSeverity }
+                  onConfidence={ this.handleConfidence }
+                  onIssueType={ this.handleIssueType }
+                />
+              </div>
+              <div className="column is-three-quarters">
+                <Issues
+                  data={ this.props.data }
+                  severity={ this.state.severity }
+                  confidence={ this.state.confidence }
+                  issueType={ this.state.issueType }
+                />
+              </div>
+            </div>
+          </div>
+        );
+      }
+    });
+    ReactDOM.render(
+      <IssueBrowser data={ data } />,
+      document.getElementById("content")
+    );
+  </script>
+</body>
+</html>
