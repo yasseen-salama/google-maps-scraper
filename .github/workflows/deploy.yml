@@ -74,6 +74,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: brezel-ai/scraper-webapp
+          ref: ${{ github.ref_name }}
           token: ${{ secrets.FRONTEND_REPO_TOKEN }}
           path: frontend
 
@@ -114,9 +115,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            CLERK_SECRET_KEY=${{ secrets.STAGING_CLERK_SECRET_KEY }}
-            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
-            NEXT_PUBLIC_API_URL=${{ secrets.STAGING_API_URL || 'http://brezelscraper-backend:8080' }}
+            CLERK_SECRET_KEY=${{ secrets.CLERK_SECRET_KEY }}
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+            NEXT_PUBLIC_API_URL=http://brezelscraper-backend:8080
             NEXT_PUBLIC_ENVIRONMENT=staging
             NODE_ENV=production
 
@@ -139,9 +140,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DSN: ${{ secrets.DSN }}
-          CLERK_API_KEY: ${{ secrets.CLERK_API_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
-          CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
@@ -153,7 +153,7 @@ jobs:
           port: ${{ secrets.STAGING_SSH_PORT || 22 }}
           timeout: 15m
           command_timeout: 15m
-          envs: GITHUB_TOKEN,DSN,CLERK_API_KEY,CLERK_SECRET_KEY,CLERK_PUBLISHABLE_KEY,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,GOOGLE_CLIENT_SECRET
+          envs: GITHUB_TOKEN,DSN,CLERK_SECRET_KEY,CLERK_PUBLISHABLE_KEY,STRIPE_SECRET_KEY,STRIPE_WEBHOOK_SECRET,GOOGLE_CLIENT_SECRET
           script: |
             set -e
             
@@ -197,9 +197,6 @@ jobs:
             fi
             
             # Clerk
-            if [ ! -z "$CLERK_API_KEY" ]; then
-              sed -i "s/^CLERK_API_KEY=.*/CLERK_API_KEY=$CLERK_API_KEY/" .env
-            fi
             if [ ! -z "$CLERK_SECRET_KEY" ]; then
               grep -q "^CLERK_SECRET_KEY=" .env && \
                 sed -i "s/^CLERK_SECRET_KEY=.*/CLERK_SECRET_KEY=$CLERK_SECRET_KEY/" .env || \

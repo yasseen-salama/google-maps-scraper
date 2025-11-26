@@ -47,7 +47,7 @@ type ServerConfig struct {
 	Addr                string
 	PgDB                *sql.DB // Optional PostgreSQL connection
 	UserRepo            postgres.UserRepository
-	ClerkAPIKey         string // Optional Clerk API key for authentication
+	ClerkSecretKey      string // Clerk server-side secret key for authentication
 	StripeAPIKey        string // Optional Stripe API key for subscriptions
 	StripeWebhookSecret string // Optional Stripe webhook secret
 }
@@ -69,10 +69,10 @@ func New(cfg ServerConfig) (*Server, error) {
 		},
 	}
 
-	// Initialize authentication middleware if Clerk API key is provided
-	if cfg.ClerkAPIKey != "" && cfg.UserRepo != nil {
+	// Initialize authentication middleware if Clerk secret key is provided
+	if cfg.ClerkSecretKey != "" && cfg.UserRepo != nil {
 		var err error
-		ans.authMiddleware, err = auth.NewAuthMiddleware(cfg.ClerkAPIKey, cfg.UserRepo)
+		ans.authMiddleware, err = auth.NewAuthMiddleware(cfg.ClerkSecretKey, cfg.UserRepo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize authentication: %w", err)
 		}

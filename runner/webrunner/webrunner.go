@@ -48,13 +48,13 @@ type webrunner struct {
 // dependencies (Clerk), and constructs the web.ServerConfig in a single place.
 // Stripe settings are optional; if present, they are applied.
 func buildServerConfig(cfg *runner.Config, db *sql.DB, svc *web.Service) (web.ServerConfig, error) {
-	clerkAPIKey := os.Getenv("CLERK_API_KEY")
+	clerkSecretKey := os.Getenv("CLERK_SECRET_KEY")
 	stripeAPIKey := os.Getenv("STRIPE_SECRET_KEY")
 	stripeWebhookSecret := os.Getenv("STRIPE_WEBHOOK_SECRET")
 
-	if clerkAPIKey == "" {
-		log.Println("[WebRunner] FATAL: CLERK_API_KEY is required but missing. Set the CLERK_API_KEY environment variable.")
-		return web.ServerConfig{}, fmt.Errorf("CLERK_API_KEY environment variable is required")
+	if clerkSecretKey == "" {
+		log.Println("[WebRunner] FATAL: CLERK_SECRET_KEY is required but missing. Set the CLERK_SECRET_KEY environment variable.")
+		return web.ServerConfig{}, fmt.Errorf("CLERK_SECRET_KEY environment variable is required")
 	}
 
 	userRepo := postgres.NewUserRepository(db)
@@ -64,7 +64,7 @@ func buildServerConfig(cfg *runner.Config, db *sql.DB, svc *web.Service) (web.Se
 		Addr:                cfg.Addr,
 		PgDB:                db,
 		UserRepo:            userRepo,
-		ClerkAPIKey:         clerkAPIKey,
+		ClerkSecretKey:      clerkSecretKey,
 		StripeAPIKey:        stripeAPIKey,
 		StripeWebhookSecret: stripeWebhookSecret,
 	}
