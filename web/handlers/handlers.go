@@ -34,6 +34,7 @@ type HandlerGroup struct {
 	API         *APIHandlers
 	Billing     *BillingHandlers
 	Integration *IntegrationHandler
+	Version     *VersionHandler
 }
 
 // NewHandlerGroup constructs a HandlerGroup with initialized handlers.
@@ -43,6 +44,7 @@ func NewHandlerGroup(deps Dependencies) *HandlerGroup {
 		API:         &APIHandlers{Deps: deps},
 		Billing:     &BillingHandlers{Deps: deps},
 		Integration: NewIntegrationHandler(deps.IntegrationRepo, deps.App, deps.GoogleSheetsSvc),
+		Version:     NewVersionHandler(),
 	}
 }
 
