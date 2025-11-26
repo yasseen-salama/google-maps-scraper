@@ -109,6 +109,10 @@ func New(cfg ServerConfig) (*Server, error) {
 	// Health check endpoint (no authentication needed)
 	router.HandleFunc("/health", hg.Web.HealthCheck).Methods(http.MethodGet)
 
+	// Version endpoint (no authentication needed, for monitoring and debugging)
+	router.HandleFunc("/api/version", hg.Version.GetVersion).Methods(http.MethodGet)
+	router.HandleFunc("/api/v1/version", hg.Version.GetVersion).Methods(http.MethodGet)
+
 	// Static files
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
 
