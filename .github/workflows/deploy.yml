@@ -132,6 +132,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
+            SKIP_ENV_VALIDATION=1
             BUILD_DATE=${{ github.event.head_commit.timestamp }}
             VERSION=${{ needs.build-and-push-backend.outputs.version || github.ref_name }}
 
