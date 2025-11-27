@@ -42,11 +42,11 @@ jobs:
           # Build timestamp (actual build time, not commit time)
           echo "timestamp=${BUILD_TIME}" >> $GITHUB_OUTPUT
           
-          # Backend full version
+          # Backend full version (Docker-compatible: no + allowed)
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             BACKEND_VER="${{ github.ref_name }}"
           else
-            BACKEND_VER="v${VERSION}-${{ github.ref_name }}+${SHORT_SHA}"
+            BACKEND_VER="v${VERSION}-${{ github.ref_name }}-${SHORT_SHA}"
           fi
           echo "backend=${BACKEND_VER}" >> $GITHUB_OUTPUT
           
@@ -130,20 +130,20 @@ jobs:
             FRONTEND_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
             echo "Frontend SHA: $FRONTEND_SHA"
             
-            # Construct Frontend Version
+            # Construct Frontend Version (Docker-compatible: no + allowed)
             BASE_VER="${{ needs.setup.outputs.semver_base }}"
             if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
               FRONTEND_VER="${{ github.ref_name }}"
             else
-              FRONTEND_VER="v${BASE_VER}-${{ github.ref_name }}+${FRONTEND_SHA}"
+              FRONTEND_VER="v${BASE_VER}-${{ github.ref_name }}-${FRONTEND_SHA}"
             fi
             
             echo "frontend_version=${FRONTEND_VER}" >> $GITHUB_OUTPUT
             echo "✅ Frontend Version: ${FRONTEND_VER}"
           else
             echo "FRONTEND_EXISTS=false" >> $GITHUB_ENV
-            # Set fallback version for consistent tagging
-            FALLBACK_VER="v${{ needs.setup.outputs.semver_base }}-${{ github.ref_name }}+unavailable"
+            # Set fallback version for consistent tagging (Docker-compatible)
+            FALLBACK_VER="v${{ needs.setup.outputs.semver_base }}-${{ github.ref_name }}-unavailable"
             echo "frontend_version=${FALLBACK_VER}" >> $GITHUB_OUTPUT
             echo "⚠️ Frontend repository not accessible, using fallback version"
           fi
