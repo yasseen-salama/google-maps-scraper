@@ -26,10 +26,11 @@ services:
 
   frontend:
     build:
-      context: ../google-maps-scraper-webapp
+      context: ../brezelscraper-frontend
       dockerfile: Dockerfile
+      target: builder
     platform: linux/arm64
-    container_name: brezelscraper-webapp-dev
+    container_name: brezelscraper-frontend-dev
     ports:
       - "3000:3000"
     environment:

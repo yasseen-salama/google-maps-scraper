@@ -11,7 +11,7 @@ on:
 env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: yasseen-salama/google-maps-scraper
-  FRONTEND_IMAGE: yasseen-salama/scraper-webapp
+  FRONTEND_IMAGE: yasseen-salama/brezelscraper-frontend
   DOCKER_COMPOSE_FILE: docker-compose.staging.yaml
   BACKEND_CONTAINER: brezelscraper-backend
   FRONTEND_CONTAINER: brezelscraper-frontend
@@ -114,7 +114,7 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          repository: brezel-ai/scraper-webapp
+          repository: brezel-ai/brezelscraper-frontend
           ref: ${{ github.ref_name }}
           token: ${{ secrets.FRONTEND_REPO_TOKEN }}
           path: frontend
